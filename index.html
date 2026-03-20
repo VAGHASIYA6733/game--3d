@@ -28,8 +28,9 @@ canvas{display:block}
 #battleBtn:disabled{opacity:.5;transform:none;cursor:not-allowed}
 .results{margin-top:14px;border-top:1px solid rgba(255,255,255,.1);padding-top:12px}
 .results h3{font-size:.85rem;color:#FFD166;margin-bottom:8px}
-.result-row{display:flex;justify-content:space-between;font-size:.85rem;padding:4px 0;color:#bbb}
-.result-row.winner{color:#4ade80;font-weight:600}
+.result-row{display:flex;justify-content:space-between;font-size:.85rem;padding:4px 0;color:#bbb;flex-direction:column}
+.result-row-main{display:flex;justify-content:space-between}
+.result-row.winner .result-row-main{color:#4ade80;font-weight:600}
 #timer{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:rgba(20,20,40,.85);backdrop-filter:blur(12px);border:1px solid rgba(255,107,53,.3);border-radius:30px;padding:8px 24px;z-index:10;color:#FFD166;font-weight:700;font-size:1.1rem;display:none}
 #countdown{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:50;pointer-events:none}
 #countdown span{font-size:8rem;font-weight:900;color:#FF6B35;text-shadow:0 0 60px rgba(255,107,53,.6);animation:countPulse .8s ease-out}
@@ -39,6 +40,11 @@ canvas{display:block}
 #share-popup button{margin-top:8px;padding:8px 18px;background:#4ade80;border:none;border-radius:8px;color:#1a1a2e;font-weight:700;cursor:pointer;font-family:'Outfit'}
 #joystick{position:fixed;bottom:30px;left:30px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.08);border:2px solid rgba(255,107,53,.3);display:none;z-index:10}
 #joystick-knob{width:40px;height:40px;border-radius:50%;background:rgba(255,107,53,.5);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
+.reaction-toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:rgba(15,15,35,.97);border:1px solid #FFD166;border-radius:14px;padding:14px 28px;color:#FFD166;font-size:1rem;font-weight:600;z-index:200;max-width:85vw;text-align:center;pointer-events:none;animation:toastIn .35s cubic-bezier(.175,.885,.32,1.275)}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,20px) scale(.9)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
+.ai-pitch-bubble{position:fixed;background:rgba(15,15,35,.92);border:1px solid rgba(255,107,53,.4);border-radius:10px;padding:6px 12px;color:#fff;font-size:.78rem;font-family:'Outfit',sans-serif;z-index:15;max-width:160px;pointer-events:none;white-space:nowrap;animation:bubbleIn .3s ease}
+@keyframes bubbleIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes floatUp{0%{opacity:0;transform:translate(-50%,-50%)}20%{opacity:1;transform:translate(-50%,-120%)}80%{opacity:1;transform:translate(-50%,-160%)}100%{opacity:0;transform:translate(-50%,-200%)}}
 @media(max-width:768px){
   #ui{width:220px;padding:12px;top:10px;left:10px;font-size:.85rem}
   #ui h2{font-size:1rem}
@@ -50,6 +56,17 @@ canvas{display:block}
 </style>
 </head>
 <body>
+<div id="api-gate" style="position:fixed;inset:0;background:linear-gradient(135deg,#1a1a2e,#16213e);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2000;font-family:'Outfit',sans-serif;color:#fff;padding:20px;text-align:center">
+  <div style="font-size:3rem;margin-bottom:16px">🏪</div>
+  <h1 style="color:#FF6B35;font-size:2rem;font-weight:900;margin-bottom:6px">SURAT MARKET 3D</h1>
+  <p style="color:#aaa;font-size:.95rem;margin-bottom:6px">Powered by OpenRouter — free AI models (Llama 3.1)</p>
+  <p style="color:#666;font-size:.8rem;margin-bottom:20px">Free key at <span style="color:#FF6B35">openrouter.ai</span> — no credit card needed</p>
+  <input id="orKeyInput" type="password" placeholder="sk-or-v1-..."
+    style="width:min(420px,90vw);padding:14px 18px;border:1px solid rgba(255,107,53,.5);border-radius:12px;background:rgba(255,255,255,.07);color:#fff;font-family:'Outfit';font-size:1rem;outline:none;margin-bottom:10px" value="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"/>
+  <button onclick="saveORKey()" style="width:min(420px,90vw);padding:14px;background:linear-gradient(135deg,#FF6B35,#e63946);border:none;border-radius:12px;color:#fff;font-family:'Outfit';font-weight:700;font-size:1.1rem;cursor:pointer">▶ Enter the Market</button>
+  <button onclick="skipAPI()" style="margin-top:10px;background:transparent;border:none;color:#666;font-family:'Outfit';font-size:.85rem;cursor:pointer;text-decoration:underline">Play without AI (basic mode)</button>
+  <p id="keyError" style="color:#e63946;margin-top:8px;font-size:.85rem;display:none">❌ Key must start with sk-or-v1-</p>
+</div>
 <div id="loading"><h1>🏪 SURAT MARKET</h1><p>Setting up stalls...</p><div class="load-bar"><div class="load-fill" id="loadFill"></div></div></div>
 <div id="ui">
   <h2 id="vendorTitle">🥟 VADA PAV BHAI 🥟</h2>
@@ -61,6 +78,7 @@ canvas{display:block}
     <h3>🏆 LIVE RESULTS</h3>
     <div id="resultsList"></div>
   </div>
+  <button onclick="resetSave()" style="margin-top:8px;width:100%;padding:6px;background:transparent;border:1px solid rgba(255,107,53,.2);border-radius:8px;color:#555;font-family:'Outfit';font-size:.72rem;cursor:pointer">🗑 Reset Save</button>
 </div>
 <div id="timer">⏱ 90s</div>
 <div id="countdown"><span id="countNum">3</span></div>
@@ -84,12 +102,36 @@ const CUSTOMER_COUNT=30, ROUND_TIME=90, PITCH_TIME=30;
 let scene,camera,renderer,controls,clock;
 let customers=[],stallMeshes=[],stallGlows=[];
 let dustParticles,coinSystem;
-let playerIdx=0,coins=0,wins=0,level=1,roundNum=0;
+let playerIdx=0;
+let coins    = parseInt(localStorage.getItem('surat_coins')    ||'0');
+let wins     = parseInt(localStorage.getItem('surat_wins')     ||'0');
+let level    = parseInt(localStorage.getItem('surat_level')    ||'1');
+let roundNum = parseInt(localStorage.getItem('surat_roundNum') ||'0');
 let gameState='lobby'; // lobby|countdown|pitch|rush|results
 let roundTimer=0,pitchTimer=0;
 let scores=[0,0,0,0],roundWinner=-1;
+let aiPitches = ['', '', '', ''];
 const roomId=new URLSearchParams(location.search).get('room')||'4721';
 let audioCtx,sounds={};
+
+const GUJARATI_SLANG = {
+  rush: ['Chalo bhai, garam garam!','Aaj mast deal che!','Su bhaav? Leva joie!',
+         'Bhai thaik che aa toh!','Maja ni vaat che!','Jaldi karo, khaali thai jashe!',
+         'Ekdum fresh bhai!','Chalo chalo dodhiyo aavyo!','Arre bhai kharek!','Kem cho! Aa levo chhe?'],
+  player_wins: ['Wah bhai wah!','Tara jevo koi nahi!','Surat no number one vendor!',
+                'Ekdum mast pitch bhai!','Legend che tu!'],
+  player_loses: ['Next time better pitch bhai!','Su thayu? Practice karo!',
+                 'Khaali haath aavyo kya?','Kem nahi better? Bad pitch!'],
+  event_monsoon:  ['Varsha ma chai pivo bhai!','Aaj toh chai j chalashe!'],
+  event_navratri: ['Navratri special farsan!','Garba pachi farsan bhai!'],
+  event_cow_jam:  ['Gaay aavi gayi bhai!','Traffic jam! Chalo chalo!'],
+  event_uncle:    ['Bhaav ghata karo bhai!','Discount do tabhi lunga!'],
+  idle:           ['Kem cho!','Su bhaav che?','Maja ma!','Kyaare khashe?']
+};
+function getSlang(cat) {
+  const a = GUJARATI_SLANG[cat] || GUJARATI_SLANG.idle;
+  return a[Math.floor(Math.random() * a.length)];
+}
 
 /* ═══════════════ INIT ═══════════════ */
 function init(){
@@ -121,11 +163,17 @@ function init(){
   buildLights();
   buildGround();
   buildStalls();
+  buildStallBounds();
   buildCustomers();
   buildDustParticles();
   buildCoinSystem();
+  buildRainSystem();
   initAudio();
   initMultiplayer();
+
+  document.getElementById('coins').textContent=coins+'₹';
+  document.getElementById('wins').textContent=wins;
+  document.getElementById('level').textContent=level;
 
   window.addEventListener('resize',onResize);
   initMobileControls();
@@ -201,6 +249,13 @@ function createPerson(skinColor, shirtColor){
 }
 
 /* ═══════════════ STALLS ═══════════════ */
+let stallBounds = [];
+function buildStallBounds() {
+  stallBounds = STALLS.map(s => ({
+    minX:s.pos[0]-2.2, maxX:s.pos[0]+2.2,
+    minZ:s.pos[2]-1.5, maxZ:s.pos[2]+1.5
+  }));
+}
 function buildStalls(){
   STALLS.forEach((s,i)=>{
     const g=new THREE.Group();
@@ -265,12 +320,26 @@ function buildCustomers(){
       target:new THREE.Vector3((Math.random()-.5)*20,0,(Math.random()-.5)*20),
       speed:.5+Math.random()*1.5,
       bobPhase:Math.random()*Math.PI*2,
-      rushing:false,rushTarget:-1
+      rushing:false,rushTarget:-1,hasShouted:false
     });
   }
 }
 
-/* ═══════════════ DUST PARTICLES ═══════════════ */
+/* ═══════════════ DUST AND LIGHT EFFECTS ═══════════════ */
+let rainSystem=null;
+function buildRainSystem(){
+  const count=500,geo=new THREE.BufferGeometry();
+  const pos=new Float32Array(count*3),vel=new Float32Array(count*3);
+  for(let i=0;i<count;i++){
+    pos[i*3]=(Math.random()-.5)*50; pos[i*3+1]=Math.random()*20; pos[i*3+2]=(Math.random()-.5)*50;
+    vel[i*3+1]=-(8+Math.random()*4);
+  }
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  rainSystem={geo,velocities:vel,active:false,
+    mesh:new THREE.Points(geo,new THREE.PointsMaterial({color:0xaaddff,size:.08,transparent:true,opacity:.6}))};
+  rainSystem.mesh.visible=false;
+  scene.add(rainSystem.mesh);
+}
 function buildDustParticles(){
   const count=200;
   const geo=new THREE.BufferGeometry();
@@ -305,16 +374,51 @@ function triggerCoins(pos){
   coinSystem.active=true;coinSystem.life=2;
 }
 
-/* ═══════════════ AUDIO ═══════════════ */
-function initAudio(){
-  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  document.addEventListener('click',()=>{if(audioCtx.state==='suspended')audioCtx.resume()},{once:true});
+/* ═══════════════ UI EFFECTS ═══════════════ */
+function showReactionToast(text){
+  document.querySelector('.reaction-toast')?.remove();
+  const el=document.createElement('div'); el.className='reaction-toast';
+  el.textContent=`⚖️ ${text}`; document.body.appendChild(el);
+  setTimeout(()=>el.remove(),5000);
 }
-function speakText(text, pitch=1){
-  if(!window.speechSynthesis)return;
+function showAIPitchBubble(idx,text){
+  if(!text) return;
+  const p=stallMeshes[idx].position.clone(); p.y+=4;
+  const pr=p.project(camera);
+  const x=(pr.x*.5+.5)*innerWidth, y=(-pr.y*.5+.5)*innerHeight;
+  if(x<0||x>innerWidth||y<0||y>innerHeight) return;
+  const el=document.createElement('div'); el.className='ai-pitch-bubble';
+  el.style.left=x+'px'; el.style.top=y+'px'; el.textContent=text;
+  document.body.appendChild(el); setTimeout(()=>el.remove(),4000);
+}
+function showFloatingText(worldPos,text){
+  const p=worldPos.project(camera);
+  const x=(p.x*.5+.5)*innerWidth, y=(-p.y*.5+.5)*innerHeight;
+  if(x<0||x>innerWidth||y<0||y>innerHeight) return;
+  const el=document.createElement('div');
+  el.style.cssText=`position:fixed;left:${x}px;top:${y}px;background:rgba(15,15,35,.88);border:1px solid rgba(255,209,102,.5);border-radius:8px;padding:5px 10px;color:#FFD166;font-size:.75rem;font-family:'Outfit',sans-serif;z-index:20;pointer-events:none;white-space:nowrap;animation:floatUp 2.1s ease forwards;`;
+  el.textContent=text; document.body.appendChild(el); setTimeout(()=>el.remove(),2200);
+}
+
+/* ═══════════════ AUDIO ═══════════════ */
+let bgmGain = null;
+
+function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const resume = () => { audioCtx.resume(); document.removeEventListener('click', resume); };
+  document.addEventListener('click', resume);
+  buildAmbientMarket();
+  buildBGM();
+}
+
+function speakText(text, pitch=1) {
+  if (!window.speechSynthesis) return;
+  speechSynthesis.cancel();
   const u=new SpeechSynthesisUtterance(text);
-  u.pitch=pitch;
-  u.rate=1.1;
+  u.pitch=pitch; u.rate=1+(Math.random()-.5)*.2; u.volume=.8;
+  const voices=speechSynthesis.getVoices();
+  const v=voices.find(v=>v.lang==='en-IN')||voices.find(v=>v.lang.startsWith('en'));
+  if(v) u.voice=v;
   speechSynthesis.speak(u);
 }
 function playSound(type, text=''){
@@ -334,13 +438,82 @@ function playSound(type, text=''){
       o.connect(fg);fg.connect(audioCtx.destination);o.start(now+i*.15);o.stop(now+i*.15+.6);
     });
   }else if(type==='step'){
-    const buf=audioCtx.createBuffer(1,audioCtx.sampleRate*.05,audioCtx.sampleRate);
+    const buf=audioCtx.createBuffer(1,Math.floor(audioCtx.sampleRate*.05),audioCtx.sampleRate);
     const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()-.5)*.3;
     const src=audioCtx.createBufferSource();src.buffer=buf;
     g.gain.setValueAtTime(.04,now);g.gain.exponentialRampToValueAtTime(.001,now+.05);
     src.connect(g);src.start(now);
   }
 }
+
+function buildAmbientMarket() {
+  [[180,8,0.006,0.07,0.003],[320,5,0.004,0.13,0.002],[850,3,0.003,0.19,0.001]].forEach(([freq,q,g,lf,ld]) => {
+    const src=audioCtx.createOscillator(), filt=audioCtx.createBiquadFilter();
+    const gain=audioCtx.createGain(), lfo=audioCtx.createOscillator(), lfoG=audioCtx.createGain();
+    src.type='sawtooth'; src.frequency.value=freq;
+    filt.type='bandpass'; filt.frequency.value=freq; filt.Q.value=q;
+    gain.gain.value=g; lfo.frequency.value=lf; lfoG.gain.value=ld;
+    lfo.connect(lfoG); lfoG.connect(gain.gain);
+    src.connect(filt); filt.connect(gain); gain.connect(audioCtx.destination);
+    src.start(); lfo.start();
+  });
+
+  function rickshawHorn() {
+    const t=audioCtx.currentTime;
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type='sawtooth';
+    o.frequency.setValueAtTime(380,t); o.frequency.setValueAtTime(430,t+.08); o.frequency.setValueAtTime(380,t+.18);
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.045,t+.05); g.gain.linearRampToValueAtTime(0,t+.55);
+    o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t+.65);
+    setTimeout(rickshawHorn, 9000+Math.random()*8000);
+  }
+  setTimeout(rickshawHorn, 5000);
+}
+
+function buildBGM() {
+  bgmGain=audioCtx.createGain(); bgmGain.gain.value=0.07; bgmGain.connect(audioCtx.destination);
+  const NOTES=[261.63,277.18,311.13,349.23,392.00,415.30,466.16,523.25];
+  const MELODY=[0,2,4,3,2,0,1,2,4,6,5,4,3,2,0,0];
+  const KICK=[1,0,0,1,0,1,0,0,1,0,1,0,0,0,1,0];
+  const SNAP=[0,0,1,0,1,0,0,1,0,1,0,0,1,0,0,1];
+  let step=0;
+  setInterval(()=>{
+    const t=audioCtx.currentTime;
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain(),f=audioCtx.createBiquadFilter();
+    o.type='triangle'; o.frequency.value=NOTES[MELODY[step%16]];
+    f.type='lowpass'; f.frequency.value=1800;
+    g.gain.setValueAtTime(.6,t); g.gain.exponentialRampToValueAtTime(.001,t+.28);
+    o.connect(f); f.connect(g); g.connect(bgmGain); o.start(t); o.stop(t+.35);
+    if(KICK[step%16]){
+      const ko=audioCtx.createOscillator(),kg=audioCtx.createGain();
+      ko.type='sine'; ko.frequency.setValueAtTime(140,t); ko.frequency.exponentialRampToValueAtTime(40,t+.15);
+      kg.gain.setValueAtTime(.3,t); kg.gain.exponentialRampToValueAtTime(.001,t+.2);
+      ko.connect(kg); kg.connect(bgmGain); ko.start(t); ko.stop(t+.25);
+    }
+    if(SNAP[step%16]){
+      const buf=audioCtx.createBuffer(1,Math.floor(audioCtx.sampleRate*.05),audioCtx.sampleRate);
+      const d=buf.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=(Math.random()-.5)*(1-i/d.length);
+      const src=audioCtx.createBufferSource(),sg=audioCtx.createGain();
+      sg.gain.setValueAtTime(.15,t); sg.gain.exponentialRampToValueAtTime(.001,t+.06);
+      src.buffer=buf; src.connect(sg); sg.connect(bgmGain); src.start(t);
+    }
+    step++;
+  }, 350);
+}
+
+function playCrowdCheer() {
+  if(!audioCtx) return;
+  const t=audioCtx.currentTime;
+  for(let i=0;i<8;i++){
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type='sawtooth'; o.frequency.value=300+Math.random()*400;
+    g.gain.setValueAtTime(0,t+i*.04); g.gain.linearRampToValueAtTime(.03,t+i*.04+.1);
+    g.gain.exponentialRampToValueAtTime(.001,t+i*.04+.8);
+    o.connect(g); g.connect(audioCtx.destination); o.start(t+i*.04); o.stop(t+i*.04+1);
+  }
+}
+
 
 /* ═══════════════ MULTIPLAYER (BroadcastChannel) ═══════════════ */
 let bc;
@@ -354,6 +527,120 @@ function initMultiplayer(){
 }
 
 /* ═══════════════ GAME LOGIC ═══════════════ */
+async function callOR(system, user, maxTokens = 120, model = 'meta-llama/llama-3.1-8b-instruct:free') {
+  const key = getORKey();
+  if (!key) return null;
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${key}`,
+        'HTTP-Referer': location.origin,
+        'X-Title': 'Surat Street Market 3D'
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user }
+        ]
+      })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    return data.choices[0].message.content.trim();
+  } catch (e) {
+    console.warn('OR primary failed, trying fallback:', e.message);
+    // Try fallback model
+    if (model !== 'mistralai/mistral-7b-instruct:free') {
+      return callOR(system, user, maxTokens, 'mistralai/mistral-7b-instruct:free');
+    }
+    return null;
+  }
+}
+
+function parseJSON(raw) {
+  if (!raw) return null;
+  try {
+    const clean = raw.replace(/```json|```/g, '').trim();
+    const match = clean.match(/\{[\s\S]*?\}/);
+    return match ? JSON.parse(match[0]) : null;
+  } catch (e) { return null; }
+}
+
+async function scorePitchWithAI(pitch, stall, activeEvent) {
+  if (!pitch || pitch.length < 3)
+    return { score: 4, reaction: 'Khaali haath aavyo? (Came empty-handed?!)' };
+  if (!hasAI()) return fallbackScore(pitch);
+
+  const raw = await callOR(
+    `You are a sarcastic street market judge in Surat, Gujarat. Evaluate vendor pitches.
+Reply ONLY with valid JSON one line: {"score":<0-100>,"reaction":"<one punchy line mixing English+Gujarati>"}
+Gujarati words: kem cho=how are you, maja ma=great, bhai=brother, thaik che=okay, mast=amazing, khaali=nothing, chalo=let's go`,
+    `Stall: ${stall.name}, sells ${stall.item} at Rs.${stall.price}.
+Event: ${activeEvent || 'normal market day'}.
+Pitch: "${pitch}"
+Score: 0-20 if boring. 21-50 average. 51-80 good. 81-100 legendary.
+Reward Gujarati words and local humour. Punish one-word or generic pitches. JSON only.`,
+    100
+  );
+
+  return parseJSON(raw) || fallbackScore(pitch);
+}
+
+const AI_PERSONALITIES = {
+  1: {
+    system: `You are Chaiwala in Surat. Aggressive fast-talking chai vendor. Gujarati-English mix. Always mention warmth.
+Reply ONLY with JSON one line: {"pitch":"<max 12 words>","score":<30-85>}`,
+    fallbacks: ['Garam garam chai bhai! Monsoon special!','Ek cup piyo, thanda bhago bhai!','Best masala chai — kem nahi piyo?']
+  },
+  2: {
+    system: `You are Dhokla King in Surat. Proud, poetic. 100-year family recipe. Emotional language.
+Reply ONLY with JSON one line: {"pitch":"<max 12 words>","score":<30-85>}`,
+    fallbacks: ['Dadi ni recipe — ekdum original dhokla!','Soft, fluffy, mast — come taste bhai!','Pure Surat dhokla, no preservatives!']
+  },
+  3: {
+    system: `You are Farsan Wala in Surat. Budget obsessed. Very loud and pushy. Everything is cheap.
+Reply ONLY with JSON one line: {"pitch":"<max 12 words>","score":<30-85>}`,
+    fallbacks: ['Sasto farsan, best taste — chalo bhai!','Rs.8 only! Kem nahi leva?','Crispy crispy farsan — last few packets!']
+  }
+};
+
+async function generateAIPitch(stallIndex, stall, activeEvent) {
+  const p = AI_PERSONALITIES[stallIndex];
+  const fallback = () => ({
+    score: Math.round(30 + Math.random() * 40),
+    pitch: p.fallbacks[Math.floor(Math.random() * p.fallbacks.length)]
+  });
+
+  if (!hasAI() || !p) return fallback();
+
+  const raw = await callOR(
+    p.system,
+    `You sell ${stall.item} at Rs.${stall.price}. Event: ${activeEvent || 'normal day'}. Write your best pitch. JSON only.`,
+    60
+  );
+
+  return parseJSON(raw) || fallback();
+}
+
+function fallbackScore(pitch) {
+  const kw = ['best','fresh','hot','spicy','mast','garam','bhai','surat','special','kem','maja','thaik','chalo','crispy'];
+  let score = Math.min(pitch.length * 0.5, 30);
+  kw.forEach(k => { if (pitch.toLowerCase().includes(k)) score += 12; });
+  const reactions = [
+    'Thaik che bhai, but try harder!','Kem nahi better pitch?',
+    'Mast! Chalo customers!','Su thayu? One word pitch?',
+    'Maja ma! Good effort!','Bhai practice karo thoda!','Ekdum solid — chalo!'
+  ];
+  return {
+    score: Math.round(Math.min(score + Math.random() * 15, 100)),
+    reaction: reactions[Math.floor(Math.random() * reactions.length)]
+  };
+}
+
 window.startBattle=function(){
   if(gameState!=='lobby')return;
   gameState='countdown';
@@ -383,32 +670,43 @@ function startPitchPhase(){
   playSound('','Type your pitch now!');
 }
 
-function endPitchPhase(){
-  gameState='rush';
-  // score pitches
-  const playerPitch=document.getElementById('pitchInput').value.toLowerCase();
-  if(playerPitch) playSound('', playerPitch);
-  scores=[0,0,0,0];
-  // player score based on pitch length + keywords
-  const keywords=['best','fresh','hot','spicy','authentic','delicious','tasty','amazing','cheap','special','homemade','love'];
-  let pScore=playerPitch.length*.5;
-  keywords.forEach(k=>{if(playerPitch.includes(k))pScore+=15});
-  pScore+=Math.random()*20;
-  scores[0]=Math.round(pScore);
-  // AI scores
-  for(let i=1;i<4;i++)scores[i]=Math.round(20+Math.random()*50);
+async function endPitchPhase() {
+  gameState = 'rush';
+  const playerPitch = document.getElementById('pitchInput').value.trim();
+  document.getElementById('timer').textContent = hasAI() ? '🧠 AI judging...' : '⚖️ Scoring...';
+  document.getElementById('battleBtn').disabled = true;
 
-  // Apply event modifiers
-  if(currentEvent==='monsoon'&&scores[1])scores[1]*=2;
-  if(currentEvent==='navratri'&&scores[3])scores[3]*=3;
-  if(currentEvent==='uncle')scores=scores.map(s=>Math.round(s*.75));
+  const [playerResult, ai1, ai2, ai3] = await Promise.all([
+    scorePitchWithAI(playerPitch, STALLS[0], currentEvent),
+    generateAIPitch(1, STALLS[1], currentEvent),
+    generateAIPitch(2, STALLS[2], currentEvent),
+    generateAIPitch(3, STALLS[3], currentEvent)
+  ]);
 
-  roundWinner=scores.indexOf(Math.max(...scores));
-  // customer rush toward winner
-  customers.forEach(c=>{c.rushing=true;c.rushTarget=roundWinner;c.speed=4});
-  document.getElementById('timer').textContent='🏃 CUSTOMER RUSH!';
+  scores[0] = playerResult.score;
+  scores[1] = ai1.score;
+  scores[2] = ai2.score;
+  scores[3] = ai3.score;
+  aiPitches[1] = ai1.pitch || '';
+  aiPitches[2] = ai2.pitch || '';
+  aiPitches[3] = ai3.pitch || '';
+
+  if (playerResult.reaction) showReactionToast(playerResult.reaction);
+  setTimeout(() => showAIPitchBubble(1, ai1.pitch || ''), 400);
+  setTimeout(() => showAIPitchBubble(2, ai2.pitch || ''), 750);
+  setTimeout(() => showAIPitchBubble(3, ai3.pitch || ''), 1050);
+
+  if (playerPitch) speakText(playerPitch, 1.1);
+
+  if (currentEvent === 'monsoon')  scores[1] = Math.round(scores[1] * 2);
+  if (currentEvent === 'navratri') scores[3] = Math.round(scores[3] * 3);
+  if (currentEvent === 'uncle')    scores = scores.map(s => Math.round(s * .75));
+
+  roundWinner = scores.indexOf(Math.max(...scores));
+  customers.forEach(c => { c.rushing = true; c.rushTarget = roundWinner; c.speed = 4; });
+  document.getElementById('timer').textContent = '🏃 CUSTOMER RUSH!';
   playSound('step');
-  setTimeout(showResults,4000);
+  setTimeout(showResults, 4000);
 }
 
 function showResults(){
@@ -418,6 +716,11 @@ function showResults(){
   if(roundWinner===playerIdx)wins++;
   level=1+Math.floor(wins/3);
 
+  localStorage.setItem('surat_coins',coins);
+  localStorage.setItem('surat_wins',wins);
+  localStorage.setItem('surat_level',level);
+  localStorage.setItem('surat_roundNum',roundNum);
+
   // update UI
   document.getElementById('coins').textContent=coins+'₹';
   document.getElementById('wins').textContent=wins;
@@ -426,16 +729,20 @@ function showResults(){
   // glow winner stall
   stallGlows[roundWinner].opacity=.6;
   triggerCoins(new THREE.Vector3(...STALLS[roundWinner].pos));
+  playCrowdCheer();
   const winnerName=STALLS[roundWinner].name.replace(/[^\w\s]/gi, '');
   playSound('fanfare', `${winnerName} wins!`);
   for(let i=0;i<10;i++)setTimeout(()=>playSound('coin'),i*100);
+  setTimeout(()=>showReactionToast(getSlang(roundWinner===playerIdx?'player_wins':'player_loses')),1800);
 
   // results list
   let html='';
   STALLS.forEach((s,i)=>{
-    const cups=scores[i];
-    const earn=cups*s.price;
-    html+=`<div class="result-row ${i===roundWinner?'winner':''}">${s.emoji} ${i===playerIdx?'You':s.name.split(' ')[1]}: ${cups} = ₹${earn} ${i===roundWinner?'👑':''}</div>`;
+    const earn=scores[i]*s.price;
+    html+=`<div class="result-row ${i===roundWinner?'winner':''}">
+      <div class="result-row-main">${s.emoji} ${i===playerIdx?'You':s.name.split(' ')[1]}: ${scores[i]}pts = ₹${earn}${i===roundWinner?' 👑':''}</div>
+      ${i!==playerIdx&&aiPitches[i]?`<span style="font-size:.7rem;color:#888;font-style:italic">"${aiPitches[i]}"</span>`:''}
+    </div>`;
   });
   document.getElementById('resultsList').innerHTML=html;
   document.getElementById('timer').textContent=`🏆 ${STALLS[roundWinner].name} WINS!`;
@@ -452,24 +759,54 @@ function showResults(){
   setTimeout(resetRound,5000);
 }
 
+function buildSimpleCow(pos){
+  const g=new THREE.Group();
+  const bm=new THREE.MeshStandardMaterial({color:0xf5f5dc}),hm=new THREE.MeshStandardMaterial({color:0xd4a853});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(1.8,1,.9),bm); body.position.y=.8; body.castShadow=true; g.add(body);
+  const head=new THREE.Mesh(new THREE.BoxGeometry(.7,.65,.7),bm); head.position.set(1.1,1.1,0); g.add(head);
+  for(const lx of[-.5,.5]) for(const lz of[-.3,.3]){
+    const leg=new THREE.Mesh(new THREE.BoxGeometry(.2,.7,.2),bm); leg.position.set(lx,.15,lz); g.add(leg);
+  }
+  for(const hx of[-.2,.2]){
+    const horn=new THREE.Mesh(new THREE.ConeGeometry(.05,.3,4),hm); horn.position.set(1.1+hx,1.55,0); g.add(horn);
+  }
+  g.position.copy(pos); return g;
+}
+
 let currentEvent=null;
 const EVENTS=['monsoon','cow_jam','navratri','uncle'];
 function pickEvent(){
   currentEvent=EVENTS[Math.floor(Math.random()*EVENTS.length)];
   const bannerEl=document.getElementById('event-banner');
   const labels={monsoon:'☔ MONSOON! Chai 2x bonus!',cow_jam:'🐄 COW JAM! Random stall blocked!',navratri:'🎉 NAVRATRI! Farsan 3x sales!',uncle:'👴 UNCLE Ji! All prices -25%!'};
-  const speeches={monsoon:'Monsoon offer!',cow_jam:'Oh no, a cow!',navratri:'Navratri special!',uncle:'Uncle is haggling!'};
   bannerEl.textContent=labels[currentEvent];
-  playSound('', speeches[currentEvent]);
   bannerEl.style.display='block';
   setTimeout(()=>bannerEl.style.display='none',6000);
-  // cow jam effect
+
+  const evMap={monsoon:'event_monsoon',navratri:'event_navratri',cow_jam:'event_cow_jam',uncle:'event_uncle'};
+  if(evMap[currentEvent]) speakText(getSlang(evMap[currentEvent]),1.2);
+
+  if(currentEvent==='monsoon'){
+    rainSystem.active=true; rainSystem.mesh.visible=true;
+    scene.background=new THREE.Color(0x0a0a1a);
+    setTimeout(()=>{rainSystem.active=false;rainSystem.mesh.visible=false;scene.background=new THREE.Color(0x1a1a2e);},15000);
+  }
   if(currentEvent==='cow_jam'){
     const blocked=Math.floor(Math.random()*4);
-    stallMeshes[blocked].visible=false;
-    setTimeout(()=>stallMeshes[blocked].visible=true,10000);
+    const cp=new THREE.Vector3(...STALLS[blocked].pos); cp.z+=3.5;
+    const cow=buildSimpleCow(cp); scene.add(cow);
+    setTimeout(()=>scene.remove(cow),12000);
   }
 }
+
+window.resetSave=function(){
+  if(!confirm('Reset coins, wins, level?')) return;
+  ['surat_coins','surat_wins','surat_level','surat_roundNum'].forEach(k=>localStorage.removeItem(k));
+  coins=0;wins=0;level=1;roundNum=0;
+  document.getElementById('coins').textContent='0₹';
+  document.getElementById('wins').textContent='0';
+  document.getElementById('level').textContent='1';
+};
 
 function resetRound(){
   gameState='lobby';
@@ -534,17 +871,36 @@ function animate(){
     let target=c.target;
     if(c.rushing&&c.rushTarget>=0){
       const sp=STALLS[c.rushTarget].pos;
-      target=new THREE.Vector3(sp[0]+(Math.random()-.5)*2,0,sp[2]+(Math.random()-.5)*2);
+      target=new THREE.Vector3(sp[0]+(Math.random()-.5)*2.5,0,sp[2]+(Math.random()-.5)*2.5);
     }
     const dir=new THREE.Vector3().subVectors(target,c.mesh.position);
     dir.y=0;
-    if(dir.length()>.5){
+    if(dir.length()>0.5){
       dir.normalize().multiplyScalar(c.speed*dt);
-      c.mesh.position.add(dir);
+      const next=c.mesh.position.clone().add(dir);
+      let blocked=false;
+      for(const b of stallBounds){
+        if(next.x>b.minX && next.x<b.maxX && next.z>b.minZ && next.z<b.maxZ){
+          blocked=true;
+          const perp=new THREE.Vector3(-dir.z,0,dir.x).normalize();
+          c.mesh.position.addScaledVector(perp, c.speed*dt*(Math.sin(c.bobPhase*7)>0?1:-1)*1.5);
+          break;
+        }
+      }
+      if(!blocked){
+        c.mesh.position.copy(next);
+        c.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+      }
     }else if(!c.rushing){
       c.target.set((Math.random()-.5)*20,0,(Math.random()-.5)*20);
-      if(Math.random()<.05)playSound('step');
+      if(Math.random()<.02)playSound('step');
     }
+
+    if(c.rushing && !c.hasShouted){
+      c.hasShouted=true;
+      setTimeout(()=>showFloatingText(c.mesh.position.clone(), getSlang('rush')), Math.random()*2000);
+    }
+    if(!c.rushing) c.hasShouted=false;
   });
 
   // dust particles drift
@@ -556,6 +912,12 @@ function animate(){
       if(dp[i+1]>5)dp[i+1]=0;
     }
     dustParticles.geometry.attributes.position.needsUpdate=true;
+  }
+
+  if(rainSystem?.active){
+    const rp=rainSystem.geo.attributes.position.array;
+    for(let i=0;i<rp.length;i+=3){rp[i+1]+=rainSystem.velocities[i+1]*dt;if(rp[i+1]<0)rp[i+1]=20;}
+    rainSystem.geo.attributes.position.needsUpdate=true;
   }
 
   // coin particles
@@ -595,7 +957,34 @@ document.addEventListener('keydown',e=>{
   if(e.key==='d')controls.target.x+=sp;
 });
 
-init();
+function saveORKey() {
+  const key = document.getElementById('orKeyInput').value.trim();
+  document.getElementById('keyError').style.display = 'none';
+  if (!key.startsWith('sk-or-v1-')) {
+    document.getElementById('keyError').style.display = 'block';
+    return;
+  }
+  localStorage.setItem('surat_or_key', key);
+  document.getElementById('api-gate').style.display = 'none';
+  init();
+}
+
+function skipAPI() {
+  localStorage.removeItem('surat_or_key');
+  document.getElementById('api-gate').style.display = 'none';
+  init();
+}
+
+function getORKey() { return localStorage.getItem('surat_or_key') || ''; }
+function hasAI() { return !!getORKey(); }
+
+window.addEventListener('load', () => {
+  if (localStorage.getItem('surat_or_key')) {
+    document.getElementById('api-gate').style.display = 'none';
+    init();
+  }
+  // else: wait for button click
+});
 </script>
 </body>
 </html>
