@@ -1,0 +1,10 @@
+{
+  "name": "Surat Street Market 3D",
+  "short_name": "SuratMarket",
+  "description": "Compete as street food vendors in a 3D Surat market!",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#FF6B35",
+  "icons": []
+}
